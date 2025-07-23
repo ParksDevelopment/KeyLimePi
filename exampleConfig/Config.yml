@@ -1,0 +1,8 @@
+columns: 
+  count: 3
+  pins: [1,4,5]
+rows:
+  count: 5
+  pins: [6,7,8,9,10]
+
+matrixDirection: row2col
