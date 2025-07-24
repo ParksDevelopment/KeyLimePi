@@ -6,3 +6,4 @@ rows:
   pins: [6,7,8,9,10]
 
 matrixDirection: row2col
+holdTimeout: 200

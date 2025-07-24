@@ -4,7 +4,7 @@ import time
 import threading
 import queue
 
-from Interpreter import keyChange
+import Interpreter
 
 rows = 0
 columns = 0
@@ -16,6 +16,7 @@ event_queue = queue.Queue()
 
 debounceMaximum = 5
 debounceMinimum = 0
+pollingRate = .005
 
 def inputOutputSetup():
     for i in senders:
@@ -37,7 +38,6 @@ def matrixScan():
     debounce(tempMatrix)
 
 def debounce(tempMatrix):
-    update = False
     for i in range(len(debounceMatrix)):
         for j in range(len(debounceMatrix[0])):
             if (debounceMatrix[i][j] > 0) and (tempMatrix[i][j] == 0):
@@ -46,41 +46,37 @@ def debounce(tempMatrix):
                 debounceMatrix[i][j] += tempMatrix[i][j]
             if (debounceMatrix[i][j] == debounceMinimum) and (currentMatrix[i][j] == 1):
                 currentMatrix[i][j] = 0
-                update = True
+                event_queue.put([0,i,j])
             elif (debounceMatrix[i][j] == debounceMaximum) and (currentMatrix[i][j] == 0):
                 currentMatrix[i][j] = 1
-                update = True
-    if update:
-        event_queue.put(currentMatrix)
+                event_queue.put([1,i,j])
     
+threading.Thread(target=Interpreter.keyChange, args=(event_queue,), daemon=True).start()
 
-if __name__ == "__main__":
+with open('exampleConfig/Config.yml', 'r') as file:
+    Config = yaml.safe_load(file)
+GPIO.setmode(GPIO.BCM)
+columns = Config['columns']['count']
+rows = Config['rows']['count']
 
-    threading.Thread(target=keyChange, args=(event_queue,), daemon=True).start()
+if Config['matrixDirection'] == 'col2row':
+    senders = Config['columns']['pins']
+    recievers = Config['rows']['pins']
+elif Config['matrixDirection'] == 'row2col':
+    recievers = Config['columns']['pins']
+    senders = Config['rows']['pins']
+else:
+    print("invalid direction")
+currentMatrix = [ [0]*len(recievers) for i in range(len(senders))]
+debounceMatrix = [ [0]*len(recievers) for i in range(len(senders))]
+Interpreter.init()
+inputOutputSetup()
+try:
+    while True:
+        matrixScan()
+        time.sleep(pollingRate)
 
-    with open('exampleConfig/Config.yml', 'r') as file:
-        Config = yaml.safe_load(file)
-    GPIO.setmode(GPIO.BCM)
-    columns = Config['columns']['count']
-    rows = Config['rows']['count']
-
-    if Config['matrixDirection'] == 'col2row':
-        senders = Config['columns']['pins']
-        recievers = Config['rows']['pins']
-    elif Config['matrixDirection'] == 'row2col':
-        recievers = Config['columns']['pins']
-        senders = Config['rows']['pins']
-    else:
-        print("invalid direction")
-    currentMatrix = [ [0]*len(recievers) for i in range(len(senders))]
-    debounceMatrix = [ [0]*len(recievers) for i in range(len(senders))]
-    inputOutputSetup()
-    try:
-        while True:
-            matrixScan()
-            time.sleep(.005)
-
-    except KeyboardInterrupt:
-        # Clean up the GPIO pins on exit
-        GPIO.cleanup()
-        print("Program exited cleanly")
+except KeyboardInterrupt:
+    # Clean up the GPIO pins on exit
+    GPIO.cleanup()
+    print("Program exited cleanly")
